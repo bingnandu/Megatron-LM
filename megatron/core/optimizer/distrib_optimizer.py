@@ -1049,7 +1049,10 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
             for dtype, gbuf_range_map_for_all_buckets in gbuf_range_maps.items():
                 if data_parallel_rank == 0:
                     buffer_numel_unpadded = self.buffers[gbuf_idx].numel_unpadded
-                    checkpoint_numel_unpadded = state_dict[gbuf_idx][dtype]["numel_unpadded"]
+                    if "numel_unpadded" in state_dict[gbuf_idx][dtype]:
+                        checkpoint_numel_unpadded = state_dict[gbuf_idx][dtype]["numel_unpadded"]
+                    else:
+                        checkpoint_numel_unpadded = sum(state_dict["per_bucket_numel_unpadded"][0][dtype])
                     assert buffer_numel_unpadded == checkpoint_numel_unpadded, (
                         f"Number of unpadded elements must be same in current run "
                         f"({buffer_numel_unpadded}) and checkpoint ({checkpoint_numel_unpadded})"
@@ -1076,6 +1079,8 @@ class DistributedOptimizer(MixedPrecisionOptimizer):
                         # Scatter tensor list.
                         if data_parallel_rank == 0:
                             world_tensors = state_dict[gbuf_idx][dtype][key]
+                            if "numel_unpadded" not in state_dict[gbuf_idx][dtype]:
+                                world_tensors= state_dict[gbuf_idx][dtype][key][0]
 
                             start = offset_in_world_tensors
                             end = offset_in_world_tensors + gbuf_world_numel_unpadded
